@@ -5,7 +5,6 @@ from PIL import Image
 import pandas as pd
 import streamlit as st
 import numpy as np
-import datetime
 
 
 ###
@@ -19,7 +18,7 @@ st.set_page_config(
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
 
-@st.cache()
+@st.cache
 def load_xls(file):
     xls = pd.read_excel(file, sheet_name='packt')
     return xls
@@ -29,8 +28,10 @@ def main_packt(packt_bin, file_buff, decimals, algorthm):
     try:
         colors = ['red', 'blue', 'green', 'gray', 'purple']
         xls = load_xls(file_buff)
+
         for i, (nrbloco, pesobal, pesocal, comp, alt, larg) in enumerate(xls.values):
             color = np.random.choice(colors)
+
             packt_bin.addItem(
                 Item(i, nrbloco, 'cube', (float(comp), float(alt), float(larg)), float(pesobal), 1, 100, True, color))
 
@@ -77,7 +78,7 @@ if menu == 'Solver':
     hist = list()
 
     decimals = st.sidebar.checkbox(
-        'Inteiros', help='Converter números com pontos decimais em inteiros', value=True)
+        'Inteiros', help='Arredondar números com decimais em inteiros. **RECOMENDADO**', value=True)
 
     algorthm = st.sidebar.checkbox(
         'BestFit', help='Usar algoritmo de heurística gulosa para solucionar o problema', value=True)
@@ -87,16 +88,53 @@ if menu == 'Solver':
 
     st.sidebar.markdown('---')
     st.sidebar.subheader('Propriedades do Container')
+
+    container_cub = 0
+    container_compr = 0
+    container_altur = 0
+    container_largr = 0
+
     container_nome = st.sidebar.text_input(
         'ID / Nome', placeholder='Examplo1234', max_chars=20)
-    container_peso = float(st.sidebar.number_input(
-        'Peso (Kg)', min_value=0.0, max_value=1000000.0, step=1000.0, value=40000.0))
-    container_compr = float(st.sidebar.number_input(
-        'Comprimento (m)', min_value=0.0, max_value=100000.0, step=1.0, value=15.0))
-    container_altur = float(st.sidebar.number_input(
-        'Altura (m)', min_value=0.0, max_value=100000.0, step=1.0, value=5.0))
-    container_largr = float(st.sidebar.number_input(
-        'Largura (m)', min_value=0.0, max_value=100000.0, step=1.0, value=8.0))
+
+    containers = []
+
+    container_type = st.sidebar.selectbox(
+        'Contentores', ('Standard', 'High Cube'))
+
+    if container_type == 'Standard':
+        containers = ["20' ST", "40' ST"]
+    if container_type == 'High Cube':
+        containers = ["40' HC", "45' HC"]
+
+    container_options = st.sidebar.selectbox(
+        'Tipologia', options=containers)
+
+    if container_options == "20' ST":
+        container_carga_max = 28_000
+        container_compr = 5.898
+        container_altur = 2.390
+        container_largr = 2.350
+        container_cub = 33.000
+    if container_options == "40' ST":
+        container_carga_max = 26_500
+        container_compr = 12.035
+        container_altur = 2.393
+        container_largr = 2.350
+        container_cub = 67.000
+    if container_options == "40' HC":
+        container_carga_max = 26_510
+        container_compr = 12.030
+        container_altur = 2.690
+        container_largr = 2.350
+        container_cub = 76.000
+    if container_options == "45' HC":
+        container_carga_max = 26_000
+        container_compr = 13.556
+        container_altur = 2.695
+        container_largr = 2.352
+        container_cub = 86.000
+
     st.sidebar.markdown('---')
 
     st.title('PYPACKT')
@@ -117,26 +155,28 @@ if menu == 'Solver':
 
     col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
 
-    volume_disp = float(container_compr * container_altur * container_largr)
-
-    st.metric('Volume total (disponível)', value=f'{volume_disp:.2f} m³')
+    st.metric('Cubicagem máxima', value=f'{container_cub:.2f} m³')
 
     with col1:
-        st.metric('Peso', value=f'{(float(container_peso) / 1000):.2f} t')
+        st.metric('Carga máxima',
+                  value=f'{(float(container_carga_max) / 1000):.2f} t')
 
     with col2:
         st.metric('Comprimento', value=f'{float(container_compr):.2f} m')
 
     with col3:
-        st.metric('Altura', value=f'{float(container_altur):.2f} m')
-
-    with col4:
         st.metric('Largura', value=f'{float(container_largr):.2f} m')
 
+    with col4:
+        st.metric('Altura', value=f'{float(container_altur):.2f} m')
+
     packt = Packer()
-    box = Bin(container_nome, (float(container_compr), float(container_altur),
-              float(container_largr)), float(container_peso), 0, 0)
+
+    box = Bin(container_nome, (container_compr, container_largr,
+              container_altur), container_carga_max, 0, 0)
+
     packt.addBin(box)
+
     b = packt.bins[0]
     painter = Painter(b)
 
@@ -189,9 +229,9 @@ if menu == 'Solver':
                 st.markdown('### **#Estatísticas**')
                 st.write(f'Volume total (ocupado) : {volume_t:.2f} m³')
                 st.write(
-                    f'Percentual de Volume (ocupado) : {(round(volume_t / volume_disp * 100, 2)):.2f} %')
+                    f'Percentual de Volume (ocupado) : {(round((volume_t / container_cub) * 100, 2)):.2f} %')
                 st.write(
-                    f'Volume (restante) : {(volume_disp - volume_t):.2f} m³')
+                    f'Volume (restante) : {(container_cub - volume_t):.2f} m³')
                 st.write(f'Bloco(s) : {volume_t_itens}')
                 st.write(
                     f'Peso (a carregar) : {float(volume_weights) / 1000.0} t')
@@ -204,7 +244,7 @@ if menu == 'Solver':
                 st.write(f'Processado em : {eta:.3f} {unit}')
                 df = pd.DataFrame(hist, columns=[
                                   'Nr. Bloco', 'Peso Balança', 'Comp.', 'Alt.', 'Larg.', 'Volume (Cub.)', 'Ordem'])
-                temp = f'{hash(datetime.date.today())}_{container_nome}.xlsx'
+                temp = f'RP_{container_nome}_{hash(container_nome)}.xlsx'
                 df.to_excel(
                     f'./relatorios/{temp}', sheet_name='packt', float_format='%.2f', index=False)
                 st.success(f'Relatório criado com sucesso! Arquivo : {temp}')
